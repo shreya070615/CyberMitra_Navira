@@ -1,0 +1,71 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "User profile and progress data",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "description": "Firebase Auth UID" },
+        "name": { "type": "string", "description": "Display name" },
+        "email": { "type": "string", "description": "User email" },
+        "language": { "type": "string", "enum": ["en", "hi"], "description": "Preferred language" },
+        "totalPoints": { "type": "number", "description": "Total points earned" },
+        "quizHighScore": { "type": "number", "description": "Highest score in KBC quiz" },
+        "badges": { "type": "array", "items": { "type": "string" }, "description": "List of badge IDs earned" },
+        "progress": {
+          "type": "object",
+          "description": "Progress in each learning block",
+          "properties": {
+            "block1": { "type": "string", "enum": ["locked", "in-progress", "completed"] },
+            "block2": { "type": "string", "enum": ["locked", "in-progress", "completed"] },
+            "block3": { "type": "string", "enum": ["locked", "in-progress", "completed"] },
+            "block4": { "type": "string", "enum": ["locked", "in-progress", "completed"] },
+            "block5": { "type": "string", "enum": ["locked", "in-progress", "completed"] }
+          }
+        },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["uid", "name", "email"]
+    },
+    "ScamReport": {
+      "title": "Scam Report",
+      "description": "Community crowdsourced scam report",
+      "type": "object",
+      "properties": {
+        "reportId": { "type": "string" },
+        "authorUid": { "type": "string" },
+        "authorName": { "type": "string" },
+        "type": { "type": "string", "enum": ["otp", "upi", "police", "kyc", "investment", "other"] },
+        "description": { "type": "string" },
+        "location": { "type": "string" },
+        "timestamp": { "type": "string", "format": "date-time" },
+        "upvotes": { "type": "number" },
+        "verified": { "type": "boolean" }
+      },
+      "required": ["authorUid", "type", "description", "timestamp"]
+    }
+  },
+  "firestore": {
+    "/users/{uid}": {
+      "schema": "User",
+      "description": "User profiles"
+    },
+    "/users_public/{uid}": {
+      "schema": {
+        "type": "object",
+        "properties": {
+          "uid": { "type": "string" },
+          "name": { "type": "string" },
+          "quizHighScore": { "type": "number" },
+          "totalPoints": { "type": "number" },
+          "updatedAt": { "type": "string", "format": "date-time" }
+        }
+      },
+      "description": "Public user data for leaderboard"
+    },
+    "/reports/{reportId}": {
+      "schema": "ScamReport",
+      "description": "Community scam reports"
+    }
+  }
+}

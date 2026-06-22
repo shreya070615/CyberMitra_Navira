@@ -1,0 +1,101 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // ===============================================================
+    // Assumed Data Model
+    // ===============================================================
+    //
+    // Collection: users
+    // Document ID: {uid}
+    // Fields:
+    //   - uid: string (required)
+    //   - name: string (required)
+    //   - email: string (required)
+    //   - language: string (en|hi)
+    //   - totalPoints: number
+    //   - badges: list of strings
+    //   - progress: map (block1..block5 status)
+    //   - createdAt: timestamp
+    //
+    // Collection: reports
+    // Document ID: {reportId}
+    // Fields:
+    //   - authorUid: string (required)
+    //   - authorName: string
+    //   - type: string (otp|upi|police|kyc|investment|other)
+    //   - description: string (required)
+    //   - location: string
+    //   - timestamp: timestamp
+    //   - upvotes: number
+    //   - verified: bool
+    //
+    // ===============================================================
+
+    // ===============================================================
+    // Helper Functions
+    // ===============================================================
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    function isValidUser(data) {
+      return data.keys().hasAll(['uid', 'name', 'email', 'totalPoints', 'badges', 'progress']) &&
+             data.uid is string && data.uid == request.auth.uid &&
+             data.name is string && data.name.size() > 0 && data.name.size() < 100 &&
+             data.email is string && data.email.matches("^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$") &&
+             data.totalPoints is number &&
+             data.badges is list &&
+             data.progress is map;
+    }
+
+    function isValidPublicUser(data) {
+      return data.keys().hasAll(['uid', 'name', 'quizHighScore', 'totalPoints']) &&
+             data.uid is string && data.uid == request.auth.uid &&
+             data.name is string && data.name.size() > 0 && data.name.size() < 100 &&
+             data.quizHighScore is number &&
+             data.totalPoints is number;
+    }
+
+    function isValidReport(data) {
+      return data.keys().hasAll(['authorUid', 'type', 'description', 'timestamp']) &&
+             data.authorUid is string && data.authorUid == request.auth.uid &&
+             data.type in ['otp', 'upi', 'police', 'kyc', 'investment', 'other'] &&
+             data.description is string && data.description.size() > 0 && data.description.size() < 2000 &&
+             data.timestamp is timestamp;
+    }
+
+    // ===============================================================
+    // Rules
+    // ===============================================================
+
+    match /users/{userId} {
+      allow read: if isOwner(userId);
+      allow create: if isOwner(userId) && isValidUser(request.resource.data);
+      allow update: if isOwner(userId) && isValidUser(request.resource.data) && 
+                    request.resource.data.email == resource.data.email; // Email immutable
+    }
+
+    match /users_public/{userId} {
+      allow read: if isAuthenticated();
+      allow create: if isOwner(userId) && isValidPublicUser(request.resource.data);
+      allow update: if isOwner(userId) && isValidPublicUser(request.resource.data);
+    }
+
+    match /reports/{reportId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated() && isValidReport(request.resource.data);
+      allow update: if isAuthenticated() && (
+        // Allow anyone to upvote but ONLY upvote
+        (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['upvotes']) &&
+         request.resource.data.upvotes == resource.data.upvotes + 1) ||
+        // Allow owner to edit their report
+        (request.auth.uid == resource.data.authorUid && isValidReport(request.resource.data))
+      );
+      allow delete: if isAuthenticated() && request.auth.uid == resource.data.authorUid;
+    }
+  }
+}
